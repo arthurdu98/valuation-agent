@@ -1,0 +1,46 @@
+[project]
+name = "valuation"
+version = "0.1.0"
+description = "多行业估值监控与智能体辩证分析系统"
+requires-python = ">=3.11"
+dependencies = [
+    "langchain",
+    "langchain-core",
+    "langchain-openai",
+    "langchain-anthropic",
+    "langchain-community",
+    "langgraph",
+    "akshare",
+    "tushare",
+    "yfinance",
+    "pandas",
+    "numpy",
+    "pydantic",
+    "pydantic-settings",
+    "sqlalchemy[asyncio]",
+    "psycopg2-binary",
+    "pgvector",
+    "streamlit",
+    "httpx",
+    "apscheduler",
+    "python-dotenv",
+    "pyyaml",
+    "llama-index",
+    "sentence-transformers",
+    "financetoolkit",
+    "fredapi",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "pytest",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"

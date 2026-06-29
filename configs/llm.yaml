@@ -1,0 +1,69 @@
+# LLM Multi-Model Configuration
+default_model: "deepseek-chat"
+
+models:
+  claude-opus:
+    provider: "anthropic"
+    model_name: "claude-sonnet-4-20250514"
+    api_key_env: "CLAUDE_API_KEY"
+    temperature: 0.7
+    max_tokens: 4096
+    cost_per_1k_input: 0.003
+    cost_per_1k_output: 0.015
+
+  deepseek-chat:
+    provider: "openai_compatible"
+    model_name: "deepseek-chat"
+    base_url: "https://api.deepseek.com/v1"
+    api_key_env: "DEEPSEEK_API_KEY"
+    temperature: 0.7
+    max_tokens: 4096
+    cost_per_1k_input: 0.0001
+    cost_per_1k_output: 0.0002
+
+  qwen-max:
+    provider: "openai_compatible"
+    model_name: "qwen-max"
+    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    api_key_env: "QWEN_API_KEY"
+    temperature: 0.7
+    max_tokens: 4096
+    cost_per_1k_input: 0.0004
+    cost_per_1k_output: 0.0012
+
+  gpt-4o:
+    provider: "openai"
+    model_name: "gpt-4o"
+    api_key_env: "OPENAI_API_KEY"
+    temperature: 0.7
+    max_tokens: 4096
+    cost_per_1k_input: 0.005
+    cost_per_1k_output: 0.015
+
+  ollama-local:
+    provider: "ollama"
+    model_name: "qwen2.5:7b"
+    base_url: "http://localhost:11434"
+    api_key_env: ""
+    temperature: 0.7
+    max_tokens: 4096
+    cost_per_1k_input: 0.0
+    cost_per_1k_output: 0.0
+
+# Role-based model routing
+role_routing:
+  master_narrate: "deepseek-chat"
+  debate_bull: "deepseek-chat"
+  debate_bear: "deepseek-chat"
+  debate_judge: "claude-opus"
+  risk_falsify: "claude-opus"
+  final_valuation: "claude-opus"
+  news_classify: "deepseek-chat"
+  reflection: "deepseek-chat"
+  default: "deepseek-chat"
+
+# Fallback chain (try in order when primary fails)
+fallback_chain:
+  - "deepseek-chat"
+  - "qwen-max"
+  - "ollama-local"

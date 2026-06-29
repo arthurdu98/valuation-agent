@@ -1,0 +1,41 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: valuation-alerts
+    folder: Valuation
+    interval: 1m
+    rules:
+      - uid: baijiu-channel-pressure
+        title: 白酒压货预警
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: "Valuation PostgreSQL"
+            relativeTimeRange:
+              from: 86400
+              to: 0
+            model:
+              rawSql: "SELECT recorded_at AS time, metric_value FROM industry_metrics WHERE metric_name = 'inventory_months' AND recorded_at > now() - interval '1 day' ORDER BY recorded_at"
+              format: time_series
+          - refId: C
+            datasourceUid: "__expr__"
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [3]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                  type: query
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "渠道库存月数超过阈值"

@@ -1,0 +1,31 @@
+# =============================================================================
+# Valuation Monitor - Application Settings
+# =============================================================================
+# This file documents all available configuration options.
+# Actual values should be set via environment variables or .env file.
+# =============================================================================
+
+# --- Database ---
+# db_url: "postgresql://valuation:valuation_dev@localhost:5432/valuation"
+
+# --- LLM API Keys ---
+# claude_api_key: ""
+# deepseek_api_key: ""
+# qwen_api_key: ""
+# openai_api_key: ""
+
+# --- Data Source Credentials ---
+# tushare_token: ""
+# fred_api_key: ""
+
+# --- Data Source Toggles ---
+# akshare_enabled: true
+
+# --- Paths ---
+# llm_config_path: "configs/llm.yaml"
+
+# --- Scheduling ---
+# data_collection_interval_hours: 6
+
+# --- Development ---
+# debug: false

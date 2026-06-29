@@ -1,0 +1,16 @@
+apiVersion: 1
+
+datasources:
+  - name: Valuation PostgreSQL
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    user: valuation
+    secureJsonData:
+      password: valuation_dev
+    jsonData:
+      database: valuation
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: true
+    isDefault: true

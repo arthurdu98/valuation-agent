@@ -1,0 +1,22 @@
+{
+  "title": "Valuation Monitor",
+  "uid": "valuation-monitor",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Industry Metrics",
+      "datasource": { "type": "postgres", "uid": "Valuation PostgreSQL" },
+      "targets": [
+        {
+          "format": "time_series",
+          "rawSql": "SELECT recorded_at AS time, metric_value, ticker || ':' || metric_name AS metric FROM industry_metrics WHERE $__timeFilter(recorded_at) ORDER BY recorded_at",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 }
+    }
+  ]
+}
