@@ -1,17 +1,15 @@
 """Hong Kong market data adapter using AKShare.
 
-Provides access to HK-listed stock data including financial statements,
-price history, and key metrics via AKShare's Hong Kong interfaces.
+Uses stock_financial_hk_analysis_indicator_em for core financial metrics
+and stock_hk_hist for price history.
 """
 
 from __future__ import annotations
 
 import logging
 from datetime import date, datetime
-from decimal import Decimal
-from typing import Any
+from decimal import Decimal, InvalidOperation
 
-import akshare as ak
 import pandas as pd
 
 from src.data.base import DataCollectionError
@@ -20,319 +18,158 @@ from src.schemas import FinancialStatements, Market
 logger = logging.getLogger(__name__)
 
 
+def _to_decimal(value, default: Decimal = Decimal("0")) -> Decimal:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return default
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return default
+
+
+def _to_float(value, default: float = 0.0) -> float:
+    if value is None:
+        return default
+    try:
+        result = float(value)
+        return default if pd.isna(result) else result
+    except (ValueError, TypeError):
+        return default
+
+
+def _pad_hk(ticker: str) -> str:
+    """Normalise to 5-digit zero-padded code, e.g. '9992' → '09992'."""
+    return ticker.strip().lstrip("0").zfill(5) if ticker.strip().isdigit() else ticker.strip()
+
+
 class HKAdapter:
-    """Data adapter for Hong Kong Stock Exchange (HKEX) via AKShare.
+    """DataAdapter for Hong Kong Stock Exchange via AKShare.
 
-    Satisfies the DataAdapter protocol defined in src.data.base.
-
-    Ticker format: 5-digit zero-padded string, e.g. "09992" for Pop Mart,
-    "00700" for Tencent, "09988" for Alibaba.
+    Primary interface: stock_financial_hk_analysis_indicator_em
+    Returns one row per annual reporting period with standardised fields.
     """
 
     def get_financial_statements(
         self, ticker: str, periods: int = 4
     ) -> list[FinancialStatements]:
-        """Fetch financial statements for an HK-listed stock.
+        import akshare as ak
 
-        Args:
-            ticker: HK stock code, e.g. "09992".
-            periods: Number of reporting periods to retrieve (default 4).
-                     HK stocks typically report semi-annually (interim + annual).
-
-        Returns:
-            List of FinancialStatements ordered from most recent to oldest.
-
-        Raises:
-            DataCollectionError: If data cannot be fetched or parsed.
-        """
+        symbol = _pad_hk(ticker)
         try:
-            # TODO: Verify ak.stock_financial_hk_report_em interface availability
-            # and exact parameter names. AKShare HK financial interfaces may change.
-            # Possible alternatives:
-            #   - ak.stock_financial_report_sina (older interface)
-            #   - ak.stock_hk_financial_report
-            #   - Manual scraping fallback
-            symbol = ticker.lstrip("0") if ticker.startswith("0") else ticker
-            symbol_padded = ticker.zfill(5)
-
-            # Try to fetch income statement data
-            # TODO: ak.stock_financial_hk may require symbol format like "09992"
-            # or "HK09992". Verify against actual AKShare version.
-            try:
-                df_income = ak.stock_financial_analysis_indicator_em(
-                    symbol=f"HK{symbol_padded}"
-                )
-            except Exception:
-                logger.warning(
-                    f"Failed to get HK financial data via EM interface for {ticker}, "
-                    "trying alternative interface"
-                )
-                # TODO: Try alternative AKShare HK financial interfaces
-                # ak.stock_hk_financial_report or similar
-                raise DataCollectionError(
-                    f"No available financial data interface for HK stock {ticker}. "
-                    "AKShare HK financial interfaces may be limited or require "
-                    "different symbol formats."
-                )
-
-            if df_income is None or df_income.empty:
-                raise DataCollectionError(
-                    f"No financial data returned for HK stock {ticker}"
-                )
-
-            # Limit to requested periods
-            df_income = df_income.head(periods)
-
-            results: list[FinancialStatements] = []
-            for _, row in df_income.iterrows():
-                try:
-                    # TODO: Column names depend on the actual AKShare interface.
-                    # These mappings need verification against real API responses.
-                    period_date = _parse_period_date(row)
-                    fs = FinancialStatements(
-                        ticker=ticker,
-                        period=period_date,
-                        market=Market.HK,
-                        revenue=Decimal(str(row.get("营业收入", 0) or 0)),
-                        net_profit=Decimal(str(row.get("净利润", 0) or 0)),
-                        gross_margin=float(row.get("毛利率", 0) or 0),
-                        roe=float(row.get("净资产收益率", 0) or 0),
-                        contract_liabilities=None,  # Not typically available for HK
-                        total_assets=Decimal(str(row.get("总资产", 0) or 0)),
-                        total_liabilities=Decimal(str(row.get("总负债", 0) or 0)),
-                        operating_cashflow=Decimal(
-                            str(row.get("经营活动产生的现金流量净额", 0) or 0)
-                        ),
-                        eps=Decimal(str(row.get("基本每股收益", 0) or 0)),
-                        bvps=Decimal(str(row.get("每股净资产", 0) or 0)),
-                        raw_data=row.to_dict() if hasattr(row, "to_dict") else {},
-                        fetched_at=datetime.now(),
-                    )
-                    results.append(fs)
-                except (KeyError, TypeError, ValueError) as e:
-                    logger.warning(
-                        f"Skipping malformed row for {ticker}: {e}"
-                    )
-                    continue
-
-            if not results:
-                raise DataCollectionError(
-                    f"Could not parse any financial statements for HK stock {ticker}"
-                )
-
-            return results
-
-        except DataCollectionError:
-            raise
+            logger.info(f"Fetching HK financials for {symbol}, periods={periods}")
+            df = ak.stock_financial_hk_analysis_indicator_em(
+                symbol=symbol, indicator="年度"
+            )
         except Exception as e:
             raise DataCollectionError(
-                f"Failed to fetch financial statements for HK stock {ticker}: {e}"
+                f"AKShare HK fetch failed for {ticker}: {e}"
             ) from e
+
+        if df is None or df.empty:
+            raise DataCollectionError(f"No HK financial data returned for {ticker}")
+
+        df = df.head(periods)
+        results: list[FinancialStatements] = []
+
+        for _, row in df.iterrows():
+            try:
+                period_raw = row.get("REPORT_DATE", "")
+                if pd.isna(period_raw):
+                    continue
+                period_date = pd.to_datetime(period_raw).date()
+
+                revenue        = _to_decimal(row.get("OPERATE_INCOME"))
+                net_profit     = _to_decimal(row.get("HOLDER_PROFIT"))
+                gross_margin   = _to_float(row.get("GROSS_PROFIT_RATIO"))
+                roe            = _to_float(row.get("ROE_AVG"))
+                total_assets   = _to_decimal(None)   # not in this interface
+                total_liab     = _to_decimal(None)
+                ocf_per_share  = _to_float(row.get("PER_NETCASH_OPERATE"))
+                eps            = _to_decimal(row.get("BASIC_EPS"))
+                bvps           = _to_decimal(row.get("BPS"))
+                debt_ratio     = _to_float(row.get("DEBT_ASSET_RATIO")) / 100.0
+
+                # Approximate total assets from revenue + debt ratio when not available
+                if revenue and revenue > 0 and debt_ratio < 1.0:
+                    # We can't infer assets without more data; leave as 0
+                    pass
+
+                results.append(FinancialStatements(
+                    ticker=ticker,
+                    period=period_date,
+                    market=Market.HK,
+                    revenue=revenue,
+                    net_profit=net_profit,
+                    gross_margin=gross_margin,
+                    roe=roe,
+                    contract_liabilities=None,
+                    total_assets=total_assets if total_assets else Decimal("0"),
+                    total_liabilities=total_liab if total_liab else Decimal("0"),
+                    operating_cashflow=_to_decimal(ocf_per_share),  # per-share proxy
+                    eps=eps,
+                    bvps=bvps,
+                    raw_data=row.to_dict(),
+                    fetched_at=datetime.now(),
+                ))
+            except Exception as e:
+                logger.warning(f"Skip HK row for {ticker}: {e}")
+                continue
+
+        logger.info(f"Parsed {len(results)} HK periods for {ticker}")
+        return results
 
     def get_price_history(
         self, ticker: str, start: date, end: date
     ) -> pd.DataFrame:
-        """Fetch daily price history for an HK-listed stock.
+        import akshare as ak
 
-        Uses ak.stock_hk_hist with forward-adjusted prices (qfq).
-
-        Args:
-            ticker: HK stock code, e.g. "09992".
-            start: Start date (inclusive).
-            end: End date (inclusive).
-
-        Returns:
-            DataFrame with columns: date, open, high, low, close, volume.
-
-        Raises:
-            DataCollectionError: If data cannot be fetched or parsed.
-        """
+        symbol = _pad_hk(ticker)
         try:
-            symbol = ticker.zfill(5)
-            start_str = start.strftime("%Y%m%d")
-            end_str = end.strftime("%Y%m%d")
-
-            # TODO: Verify ak.stock_hk_hist parameter names and symbol format.
-            # Some versions use symbol="09992", others may need "hk09992".
             df = ak.stock_hk_hist(
                 symbol=symbol,
                 period="daily",
-                start_date=start_str,
-                end_date=end_str,
+                start_date=start.strftime("%Y%m%d"),
+                end_date=end.strftime("%Y%m%d"),
                 adjust="qfq",
             )
-
-            if df is None or df.empty:
-                raise DataCollectionError(
-                    f"No price history returned for HK stock {ticker} "
-                    f"between {start} and {end}"
-                )
-
-            # Normalize column names to standard format
-            # TODO: Verify actual column names returned by ak.stock_hk_hist
-            column_map = {
-                "日期": "date",
-                "开盘": "open",
-                "最高": "high",
-                "最低": "low",
-                "收盘": "close",
-                "成交量": "volume",
-            }
-            df = df.rename(columns=column_map)
-
-            # Ensure we have the required columns
-            required_cols = ["date", "open", "high", "low", "close", "volume"]
-            # If Chinese column names weren't present, try English
-            if not all(col in df.columns for col in required_cols):
-                english_map = {
-                    "Date": "date",
-                    "Open": "open",
-                    "High": "high",
-                    "Low": "low",
-                    "Close": "close",
-                    "Volume": "volume",
-                }
-                df = df.rename(columns=english_map)
-
-            # Select and order standard columns
-            available_cols = [c for c in required_cols if c in df.columns]
-            df = df[available_cols]
-
-            # Sort by date ascending
-            if "date" in df.columns:
-                df = df.sort_values("date").reset_index(drop=True)
-
-            return df
-
-        except DataCollectionError:
-            raise
         except Exception as e:
             raise DataCollectionError(
-                f"Failed to fetch price history for HK stock {ticker}: {e}"
+                f"HK price history fetch failed for {ticker}: {e}"
             ) from e
+
+        if df is None or df.empty:
+            return pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume"])
+
+        col_map = {"日期": "date", "开盘": "open", "最高": "high",
+                   "最低": "low", "收盘": "close", "成交量": "volume"}
+        df = df.rename(columns=col_map)
+        cols = [c for c in ["date", "open", "high", "low", "close", "volume"] if c in df.columns]
+        df = df[cols].copy()
+        df["date"] = pd.to_datetime(df["date"]).dt.date
+        return df.sort_values("date").reset_index(drop=True)
 
     def get_key_metrics(self, ticker: str) -> dict[str, float]:
-        """Fetch key financial metrics for an HK-listed stock.
+        import akshare as ak
 
-        Attempts to retrieve PE, PB, and market cap from AKShare's
-        HK spot data interface.
-
-        Args:
-            ticker: HK stock code, e.g. "09992".
-
-        Returns:
-            Dictionary with keys like 'pe', 'pb', 'market_cap'.
-
-        Raises:
-            DataCollectionError: If data cannot be fetched or parsed.
-        """
+        symbol = _pad_hk(ticker)
         try:
-            # TODO: Verify ak.stock_hk_spot_em() returns all HK stocks
-            # and confirm column names for PE, PB, market cap.
-            df = ak.stock_hk_spot_em()
-
+            df = ak.stock_financial_hk_analysis_indicator_em(
+                symbol=symbol, indicator="年度"
+            )
             if df is None or df.empty:
-                raise DataCollectionError(
-                    "Failed to fetch HK spot data from AKShare"
-                )
-
-            symbol = ticker.zfill(5)
-
-            # TODO: Verify the code column name. Could be "代码", "symbol", etc.
-            # Filter for our specific ticker
-            mask = df["代码"].astype(str).str.zfill(5) == symbol
-            if not mask.any():
-                # Try alternative column name
-                for col_name in ["代码", "symbol", "code", "股票代码"]:
-                    if col_name in df.columns:
-                        mask = df[col_name].astype(str).str.zfill(5) == symbol
-                        if mask.any():
-                            break
-
-            if not mask.any():
-                raise DataCollectionError(
-                    f"Ticker {ticker} not found in HK spot data"
-                )
-
-            row = df[mask].iloc[0]
-            metrics: dict[str, float] = {}
-
-            # TODO: Column names need verification against actual AKShare output.
-            # Map Chinese column names to metric keys
-            metric_columns = {
-                "pe": ["市盈率", "PE", "pe_ratio"],
-                "pb": ["市净率", "PB", "pb_ratio"],
-                "market_cap": ["总市值", "market_cap", "MarketCap"],
+                return {}
+            row = df.iloc[0]
+            return {
+                "gross_margin":    _to_float(row.get("GROSS_PROFIT_RATIO")),
+                "roe":             _to_float(row.get("ROE_AVG")),
+                "net_margin":      _to_float(row.get("NET_PROFIT_RATIO")),
+                "revenue_growth":  _to_float(row.get("OPERATE_INCOME_YOY")),
+                "debt_ratio":      _to_float(row.get("DEBT_ASSET_RATIO")),
+                "current_ratio":   _to_float(row.get("CURRENT_RATIO")),
+                "eps":             _to_float(row.get("BASIC_EPS")),
             }
-
-            for metric_key, possible_cols in metric_columns.items():
-                for col in possible_cols:
-                    if col in row.index:
-                        val = row[col]
-                        if pd.notna(val):
-                            try:
-                                metrics[metric_key] = float(val)
-                            except (ValueError, TypeError):
-                                pass
-                        break
-
-            if not metrics:
-                raise DataCollectionError(
-                    f"No key metrics could be extracted for HK stock {ticker}"
-                )
-
-            return metrics
-
-        except DataCollectionError:
-            raise
         except Exception as e:
-            raise DataCollectionError(
-                f"Failed to fetch key metrics for HK stock {ticker}: {e}"
-            ) from e
+            raise DataCollectionError(f"HK key metrics failed for {ticker}: {e}") from e
 
     def get_macro_indicators(self) -> dict[str, pd.Series]:
-        """Return macro indicators relevant to the Hong Kong market.
-
-        HK macro indicators largely follow China and US macro environments,
-        which are handled by their respective adapters. Returns an empty dict.
-
-        Returns:
-            Empty dictionary. HK-specific macro data is limited in AKShare;
-            use China (A-share) and US adapters for macro context.
-        """
-        # HK follows China/US macro environments.
-        # Relevant indicators (HIBOR, HSI components, HK CPI) are not
-        # well-covered by AKShare. Delegate to CN/US adapters for macro context.
         return {}
-
-
-def _parse_period_date(row: Any) -> date:
-    """Extract reporting period date from a financial data row.
-
-    Args:
-        row: A pandas Series or dict-like object from financial data.
-
-    Returns:
-        The parsed date representing the reporting period.
-
-    Raises:
-        DataCollectionError: If no date field can be parsed.
-    """
-    # TODO: Adapt to actual column names from AKShare HK financial interfaces
-    date_columns = ["报告期", "日期", "date", "report_date", "period"]
-
-    for col in date_columns:
-        if col in row.index if hasattr(row, "index") else col in row:
-            val = row[col] if hasattr(row, "__getitem__") else getattr(row, col)
-            if val is None:
-                continue
-            if isinstance(val, (date, datetime)):
-                return val if isinstance(val, date) else val.date()
-            try:
-                return pd.to_datetime(str(val)).date()
-            except (ValueError, TypeError):
-                continue
-
-    raise DataCollectionError(
-        "Could not parse reporting period date from financial data row"
-    )

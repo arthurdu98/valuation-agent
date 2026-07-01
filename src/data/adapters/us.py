@@ -259,10 +259,10 @@ class USAdapter:
         net_profit = self._safe_get(financials, "Net Income", period_date, 0)
         gross_profit = self._safe_get(financials, "Gross Profit", period_date)
 
-        # Calculate gross margin
+        # Calculate gross margin (as percentage 0-100)
         gross_margin = 0.0
         if gross_profit and revenue and float(revenue) != 0:
-            gross_margin = float(gross_profit) / float(revenue)
+            gross_margin = float(gross_profit) / float(revenue) * 100
 
         # Balance sheet fields
         total_assets = self._safe_get(
@@ -284,10 +284,10 @@ class USAdapter:
                 balance_sheet, "Total Stockholder Equity", period_date
             )
 
-        # ROE calculation
+        # ROE calculation (as percentage 0-100)
         roe = 0.0
         if stockholders_equity and float(stockholders_equity) != 0:
-            roe = float(net_profit) / float(stockholders_equity)
+            roe = float(net_profit) / float(stockholders_equity) * 100
 
         # Cash flow fields
         operating_cashflow = self._safe_get(
