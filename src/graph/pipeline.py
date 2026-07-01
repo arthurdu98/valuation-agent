@@ -157,9 +157,15 @@ class ValuationPipeline:
         state["monte_carlo_percentiles"] = None
 
         if financials:
-            latest = financials[0]
+            # Prefer annual report (period month == 12); fall back to latest
+            annual = next((f for f in financials if f.period.month == 12), financials[0])
             try:
-                ocf = float(latest.operating_cashflow) if latest.operating_cashflow else 0.0
+                ocf_raw = float(annual.operating_cashflow) if annual.operating_cashflow else 0.0
+                # Convert raw yuan → 亿元 for human-readable output
+                # AKShare returns values in yuan; normalise to 亿 (1e8)
+                OCF_UNIT = 1e8
+                ocf = ocf_raw / OCF_UNIT if abs(ocf_raw) > OCF_UNIT else ocf_raw
+
                 if ocf > 0:
                     assumptions = DCFAssumptions(
                         growth_rate=0.08,
@@ -178,7 +184,11 @@ class ValuationPipeline:
                         wacc_std=0.01,
                     )
                     state["monte_carlo_percentiles"] = mc_result.percentiles
-                    logger.info(f"DCF={state['dcf_value']:.1f}, MC p50={mc_result.percentiles.get('p50', 0):.1f}")
+                    logger.info(
+                        f"DCF={state['dcf_value']:.1f}亿, "
+                        f"MC p50={mc_result.percentiles.get('p50', 0):.1f}亿  "
+                        f"(OCF base={ocf:.1f}亿, period={annual.period})"
+                    )
             except Exception as e:
                 logger.warning(f"Valuation calc failed: {e}")
 
