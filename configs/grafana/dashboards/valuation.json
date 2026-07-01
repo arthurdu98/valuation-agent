@@ -2,21 +2,218 @@
   "title": "Valuation Monitor",
   "uid": "valuation-monitor",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "5m",
+  "time": { "from": "now-30d", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "ticker",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "Valuation PostgreSQL" },
+        "query": "SELECT DISTINCT ticker FROM industry_metrics ORDER BY ticker",
+        "refresh": 2,
+        "label": "公司代码",
+        "multi": true,
+        "includeAll": true
+      }
+    ]
+  },
   "panels": [
     {
+      "id": 1,
       "type": "timeseries",
-      "title": "Industry Metrics",
+      "title": "批价 vs 出厂价走势",
       "datasource": { "type": "postgres", "uid": "Valuation PostgreSQL" },
       "targets": [
         {
+          "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT recorded_at AS time, metric_value, ticker || ':' || metric_name AS metric FROM industry_metrics WHERE $__timeFilter(recorded_at) ORDER BY recorded_at",
-          "refId": "A"
+          "rawSql": "SELECT recorded_at AS time, metric_value, ticker || ':批价' AS metric FROM industry_metrics WHERE metric_name = 'batch_price' AND ticker IN ($ticker) AND $__timeFilter(recorded_at) ORDER BY recorded_at"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT recorded_at AS time, metric_value, ticker || ':价差' AS metric FROM industry_metrics WHERE metric_name = 'price_spread' AND ticker IN ($ticker) AND $__timeFilter(recorded_at) ORDER BY recorded_at"
         }
       ],
-      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 }
+      "fieldConfig": {
+        "defaults": { "unit": "currencyCNY", "color": { "mode": "palette-classic" } }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "渠道库存月数",
+      "datasource": { "type": "postgres", "uid": "Valuation PostgreSQL" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT recorded_at AS time, metric_value, ticker AS metric FROM industry_metrics WHERE metric_name = 'inventory_months' AND ticker IN ($ticker) AND $__timeFilter(recorded_at) ORDER BY recorded_at"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "lineWidth": 2 } },
+        "overrides": [
+          {
+            "matcher": { "id": "byType", "options": "number" },
+            "properties": [
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 2 },
+                { "color": "red", "value": 3 }
+              ]}}
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "合同负债同比变化 (%)",
+      "datasource": { "type": "postgres", "uid": "Valuation PostgreSQL" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT recorded_at AS time, metric_value, ticker AS metric FROM industry_metrics WHERE metric_name = 'contract_liabilities_yoy' AND ticker IN ($ticker) AND $__timeFilter(recorded_at) ORDER BY recorded_at"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "custom": { "lineWidth": 2 } }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "PE 历史分位（0=历史最低，1=历史最高）",
+      "datasource": { "type": "postgres", "uid": "Valuation PostgreSQL" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT created_at AS time, pe_quantile AS metric_value, ticker AS metric FROM valuation_reports WHERE ticker IN ($ticker) AND $__timeFilter(created_at) ORDER BY created_at"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0, "max": 1,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 0.5 },
+            { "color": "red", "value": 0.8 }
+          ]}
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "最新估值报告汇总",
+      "datasource": { "type": "postgres", "uid": "Valuation PostgreSQL" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ticker, pe_quantile, valuation_low, valuation_mid, valuation_high, human_approved, created_at FROM valuation_reports WHERE ticker IN ($ticker) ORDER BY created_at DESC LIMIT 20"
+        }
+      ],
+      "fieldConfig": {
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "pe_quantile" },
+            "properties": [
+              { "id": "displayName", "value": "PE分位" },
+              { "id": "unit", "value": "percentunit" },
+              { "id": "custom.displayMode", "value": "color-background" },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 0.5 },
+                { "color": "red", "value": 0.8 }
+              ]}}
+            ]
+          },
+          { "matcher": { "id": "byName", "options": "valuation_mid" },
+            "properties": [{ "id": "displayName", "value": "估值中值" }, { "id": "unit", "value": "currencyCNY" }]
+          },
+          { "matcher": { "id": "byName", "options": "human_approved" },
+            "properties": [{ "id": "displayName", "value": "已审核" }]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "活跃追踪公司数",
+      "datasource": { "type": "postgres", "uid": "Valuation PostgreSQL" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT ticker) AS value FROM industry_metrics WHERE recorded_at > now() - interval '7 days'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [
+            { "color": "blue", "value": null }
+          ]}
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto" },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 24 }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "本周估值分析次数",
+      "datasource": { "type": "postgres", "uid": "Valuation PostgreSQL" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) AS value FROM valuation_reports WHERE created_at > now() - interval '7 days'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 24 }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "待审核报告数",
+      "datasource": { "type": "postgres", "uid": "Valuation PostgreSQL" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) AS value FROM valuation_reports WHERE human_approved = false AND created_at > now() - interval '30 days'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 3 },
+            { "color": "red", "value": 5 }
+          ]}
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 24 }
     }
   ]
 }

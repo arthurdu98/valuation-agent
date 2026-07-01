@@ -71,12 +71,19 @@ class TushareAdapter:
 
     Requires a valid Tushare Pro token configured in settings.tushare_token.
     Handles rate limiting with built-in sleep delays between API calls.
+    Token validation is deferred to first actual API call (lazy init).
     """
 
     def __init__(self) -> None:
-        """Initialize Tushare Pro API connection."""
-        import tushare as ts
+        """Initialize adapter. Token is validated lazily on first API call."""
+        self._pro = None
+        self._rate_limit_delay = 0.3  # seconds between API calls
 
+    def _ensure_connected(self) -> None:
+        """Lazy-initialize Tushare Pro API connection."""
+        if self._pro is not None:
+            return
+        import tushare as ts
         token = settings.tushare_token
         if not token:
             raise DataCollectionError(
@@ -84,7 +91,6 @@ class TushareAdapter:
             )
         ts.set_token(token)
         self._pro = ts.pro_api(token)
-        self._rate_limit_delay = 0.3  # seconds between API calls
 
     def _sleep(self) -> None:
         """Sleep to respect Tushare rate limits."""
@@ -108,6 +114,7 @@ class TushareAdapter:
         Raises:
             DataCollectionError: If data fetching or parsing fails.
         """
+        self._ensure_connected()
         ts_code = _to_ts_code(ticker)
 
         try:
@@ -263,6 +270,7 @@ class TushareAdapter:
         Raises:
             DataCollectionError: If data fetching fails.
         """
+        self._ensure_connected()
         ts_code = _to_ts_code(ticker)
 
         try:
@@ -329,6 +337,7 @@ class TushareAdapter:
         Raises:
             DataCollectionError: If data fetching fails.
         """
+        self._ensure_connected()
         ts_code = _to_ts_code(ticker)
 
         try:

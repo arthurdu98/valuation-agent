@@ -4,19 +4,24 @@ groups:
   - orgId: 1
     name: valuation-alerts
     folder: Valuation
-    interval: 1m
+    interval: 5m
     rules:
+
+      # ── 白酒：压货预警（库存月数 > 3 且合同负债同比下降）──────────────
       - uid: baijiu-channel-pressure
         title: 白酒压货预警
         condition: C
         data:
           - refId: A
             datasourceUid: "Valuation PostgreSQL"
-            relativeTimeRange:
-              from: 86400
-              to: 0
+            relativeTimeRange: { from: 86400, to: 0 }
             model:
-              rawSql: "SELECT recorded_at AS time, metric_value FROM industry_metrics WHERE metric_name = 'inventory_months' AND recorded_at > now() - interval '1 day' ORDER BY recorded_at"
+              rawSql: >
+                SELECT recorded_at AS time, metric_value
+                FROM industry_metrics
+                WHERE metric_name = 'inventory_months'
+                  AND recorded_at > now() - interval '1 day'
+                ORDER BY recorded_at
               format: time_series
           - refId: C
             datasourceUid: "__expr__"
@@ -24,18 +29,163 @@ groups:
               type: threshold
               expression: A
               conditions:
-                - evaluator:
-                    type: gt
-                    params: [3]
-                  operator:
-                    type: and
-                  query:
-                    params: [C]
-                  reducer:
-                    type: last
+                - evaluator: { type: gt, params: [3] }
+                  operator: { type: and }
+                  reducer: { type: last }
                   type: query
         noDataState: NoData
         execErrState: Error
         for: 5m
         annotations:
-          summary: "渠道库存月数超过阈值"
+          summary: "渠道库存月数超过3个月，存在压货风险"
+          description: "当前库存月数 {{ $values.A.Last }}，建议核查批价走势和合同负债变化"
+        labels:
+          industry: baijiu
+          severity: warning
+
+      # ── 白酒：批价-出厂价价差收窄预警（< 200元）──────────────────────
+      - uid: baijiu-price-spread
+        title: 白酒批零价差收窄预警
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: "Valuation PostgreSQL"
+            relativeTimeRange: { from: 259200, to: 0 }
+            model:
+              rawSql: >
+                SELECT recorded_at AS time, metric_value
+                FROM industry_metrics
+                WHERE metric_name = 'price_spread'
+                  AND recorded_at > now() - interval '3 days'
+                ORDER BY recorded_at
+              format: time_series
+          - refId: C
+            datasourceUid: "__expr__"
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [200] }
+                  operator: { type: and }
+                  reducer: { type: last }
+                  type: query
+        noDataState: NoData
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: "批零价差低于200元，定价权信号走弱"
+          description: "当前价差 {{ $values.A.Last }} 元，历史均值约 350 元"
+        labels:
+          industry: baijiu
+          severity: warning
+
+      # ── PE 估值极低预警（PE 跌破历史 10% 分位）────────────────────────
+      - uid: pe-extreme-low
+        title: 估值极低预警（PE < 历史 10% 分位）
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: "Valuation PostgreSQL"
+            relativeTimeRange: { from: 86400, to: 0 }
+            model:
+              rawSql: >
+                SELECT
+                  r.created_at AS time,
+                  r.pe_quantile AS metric_value,
+                  r.ticker
+                FROM valuation_reports r
+                WHERE r.pe_quantile < 0.1
+                  AND r.created_at > now() - interval '1 day'
+                ORDER BY r.created_at
+              format: time_series
+          - refId: C
+            datasourceUid: "__expr__"
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [0.1] }
+                  operator: { type: and }
+                  reducer: { type: last }
+                  type: query
+        noDataState: NoData
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: "{{ $labels.ticker }} PE 跌破历史 10% 分位，进入极低估值区间"
+          description: "当前 PE 分位 {{ $values.A.Last | printf \"%.2f\" }}，建议触发重新估值分析"
+        labels:
+          severity: info
+
+      # ── 数据断流预警（连续 3 小时无新数据入库）─────────────────────────
+      - uid: data-feed-broken
+        title: 数据断流预警
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: "Valuation PostgreSQL"
+            relativeTimeRange: { from: 10800, to: 0 }
+            model:
+              rawSql: >
+                SELECT
+                  date_trunc('hour', recorded_at) AS time,
+                  COUNT(*) AS metric_value
+                FROM industry_metrics
+                WHERE recorded_at > now() - interval '3 hours'
+                GROUP BY 1
+                ORDER BY 1
+              format: time_series
+          - refId: C
+            datasourceUid: "__expr__"
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+                  operator: { type: and }
+                  reducer: { type: sum }
+                  type: query
+        noDataState: Alerting
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: "数据采集断流：过去3小时无新数据入库"
+          description: "请检查 DataCollector 调度器状态和数据源连通性"
+        labels:
+          severity: critical
+
+      # ── 互联网：MAU 同比下滑预警（> -5%）─────────────────────────────
+      - uid: internet-mau-decline
+        title: 互联网 MAU 同比下滑预警
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: "Valuation PostgreSQL"
+            relativeTimeRange: { from: 2592000, to: 0 }
+            model:
+              rawSql: >
+                SELECT recorded_at AS time, metric_value
+                FROM industry_metrics
+                WHERE metric_name = 'mau_yoy_pct'
+                  AND metric_value < -5
+                  AND recorded_at > now() - interval '30 days'
+                ORDER BY recorded_at
+              format: time_series
+          - refId: C
+            datasourceUid: "__expr__"
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [-5] }
+                  operator: { type: and }
+                  reducer: { type: last }
+                  type: query
+        noDataState: NoData
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: "互联网公司 MAU 同比下滑超过 5%，增长见顶信号"
+        labels:
+          industry: internet
+          severity: warning

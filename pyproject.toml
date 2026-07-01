@@ -29,6 +29,7 @@ dependencies = [
     "sentence-transformers",
     "financetoolkit",
     "fredapi",
+    "plotly",
 ]
 
 [project.optional-dependencies]

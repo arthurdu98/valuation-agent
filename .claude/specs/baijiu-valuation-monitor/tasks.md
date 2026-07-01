@@ -77,7 +77,7 @@
 
 ### 阶段 2：数据采集层
 
-- [ ] 7. 实现 A 股数据适配器（AKShare）
+- [x] 7. 实现 A 股数据适配器（AKShare）
   - Files: `src/data/adapters/ashare.py`
   - 实现 AShareAdapter(DataAdapter)：从 AKShare 获取 A 股财报三表、合同负债、宏观指标
   - 将 AKShare 返回的 DataFrame 转换为统一 schema
@@ -86,7 +86,7 @@
   - _Leverage: AKShare `stock_zcfz_em`, `stock_financial_report_sina`_
   - _Requirements: 1.1, 1.2_
 
-- [ ] 8. 实现 A 股备用适配器（Tushare）
+- [x] 8. 实现 A 股备用适配器（Tushare）
   - Files: `src/data/adapters/ashare_tushare.py`
   - 实现 TushareAdapter(DataAdapter)：从 Tushare Pro 获取 A 股财报
   - 处理积分制限流（rate limit backoff）
@@ -101,7 +101,7 @@
   - Purpose: 美股数据源接入（支持谷歌）
   - _Requirements: 1.1, 1.6_
 
-- [ ] 10. 实现港股数据适配器
+- [x] 10. 实现港股数据适配器
   - Files: `src/data/adapters/hk.py`
   - 实现 HKAdapter(DataAdapter)：从 AKShare 港股接口获取港股财报
   - 处理港股特有的报告格式（半年报/年报为主）
@@ -364,7 +364,7 @@
 
 ### 阶段 5：RAG + 新闻监控 + 反思记忆
 
-- [ ] 39. 实现 RAG 文档摄取管线
+- [x] 39. 实现 RAG 文档摄取管线
   - Files: `src/rag/ingest.py`
   - PDF 解析 + 智能切块（保留表格结构，使用 LlamaIndex MarkdownNodeParser 或类似）
   - BGE-M3 嵌入生成 + pgvector 入库
@@ -382,7 +382,7 @@
   - Purpose: 高质量证据检索
   - _Requirements: 9.2, 9.3, 9.4, 9.5_
 
-- [ ] 41. 实现新闻源采集模块
+- [x] 41. 实现新闻源采集模块
   - Files: `src/monitor/news.py`
   - 多市场新闻源接入（A 股：AKShare 公告 + RSSHub 财联社；美股：RSS；港股：RSS）
   - 定时拉取 + 去重 + 入库
@@ -417,7 +417,7 @@
   - Purpose: 系统入口和全局概览
   - _Requirements: 13.4, 11.1_
 
-- [ ] 45. 实现公司详情页（估值+大师卡片+辩论摘要）
+- [x] 45. 实现公司详情页（估值+大师卡片+辩论摘要）
   - Files: `src/ui/pages/company_detail.py`
   - 财务指标趋势图（量价利/毛利率/ROE/现金流）
   - PE 分位带可视化
@@ -427,7 +427,7 @@
   - Purpose: 单公司深度分析视图
   - _Requirements: 11.1, 11.3, 11.4_
 
-- [ ] 46. 实现行业对比页（竞对雷达图+排名表）
+- [x] 46. 实现行业对比页（竞对雷达图+排名表）
   - Files: `src/ui/pages/industry_compare.py`
   - 竞对横向对比表（营收增速/毛利率/ROE/PE 排名）
   - 雷达图对比核心指标
@@ -436,7 +436,7 @@
   - Purpose: 行业格局和相对估值视图
   - _Requirements: 11.2, 11.5, 11.6_
 
-- [ ] 47. 实现 Grafana 告警规则配置
+- [x] 47. 实现 Grafana 告警规则配置
   - Files: `configs/grafana/dashboards/valuation.json`, `configs/grafana/alerts/rules.yaml`
   - 配置时序面板：批价走势、库存月数、合同负债变化、PE 分位
   - 配置复合告警规则（如"营收↑+合同负债↓+批价↓"压货预警）
