@@ -1,69 +1,29 @@
 # LLM Multi-Model Configuration
-default_model: "deepseek-chat"
+default_model: "deepseek-flash"
 
 models:
-  claude-opus:
-    provider: "anthropic"
-    model_name: "claude-sonnet-4-20250514"
-    api_key_env: "CLAUDE_API_KEY"
-    temperature: 0.7
-    max_tokens: 4096
-    cost_per_1k_input: 0.003
-    cost_per_1k_output: 0.015
-
-  deepseek-chat:
+  deepseek-flash:
     provider: "openai_compatible"
-    model_name: "deepseek-chat"
+    model_name: "deepseek-v4-flash"
     base_url: "https://api.deepseek.com/v1"
     api_key_env: "DEEPSEEK_API_KEY"
-    temperature: 0.7
-    max_tokens: 4096
-    cost_per_1k_input: 0.0001
-    cost_per_1k_output: 0.0002
-
-  qwen-max:
-    provider: "openai_compatible"
-    model_name: "qwen-max"
-    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    api_key_env: "QWEN_API_KEY"
-    temperature: 0.7
-    max_tokens: 4096
-    cost_per_1k_input: 0.0004
-    cost_per_1k_output: 0.0012
-
-  gpt-4o:
-    provider: "openai"
-    model_name: "gpt-4o"
-    api_key_env: "OPENAI_API_KEY"
-    temperature: 0.7
-    max_tokens: 4096
-    cost_per_1k_input: 0.005
-    cost_per_1k_output: 0.015
-
-  ollama-local:
-    provider: "ollama"
-    model_name: "qwen2.5:7b"
-    base_url: "http://localhost:11434"
-    api_key_env: ""
     temperature: 0.7
     max_tokens: 4096
     cost_per_1k_input: 0.0
     cost_per_1k_output: 0.0
 
-# Role-based model routing
+# Role-based model routing — all roles use deepseek-flash
 role_routing:
-  master_narrate: "deepseek-chat"
-  debate_bull: "deepseek-chat"
-  debate_bear: "deepseek-chat"
-  debate_judge: "claude-opus"
-  risk_falsify: "claude-opus"
-  final_valuation: "claude-opus"
-  news_classify: "deepseek-chat"
-  reflection: "deepseek-chat"
-  default: "deepseek-chat"
+  master_narrate: "deepseek-flash"
+  debate_bull: "deepseek-flash"
+  debate_bear: "deepseek-flash"
+  debate_judge: "deepseek-flash"
+  risk_falsify: "deepseek-flash"
+  final_valuation: "deepseek-flash"
+  news_classify: "deepseek-flash"
+  reflection: "deepseek-flash"
+  default: "deepseek-flash"
 
-# Fallback chain (try in order when primary fails)
+# Fallback chain
 fallback_chain:
-  - "deepseek-chat"
-  - "qwen-max"
-  - "ollama-local"
+  - "deepseek-flash"

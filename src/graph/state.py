@@ -31,6 +31,10 @@ class ValuationState(TypedDict, total=False):
     valuation_report_data: dict
     sentiment_report: dict
     industry_report: dict
+    # Valuation numbers passed to L5
+    pe_quantile: float | None
+    dcf_value: float | None
+    monte_carlo_percentiles: dict | None
 
     # L2 Master outputs
     master_signals: list[dict]  # list of MasterSignal as dicts

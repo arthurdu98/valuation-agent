@@ -129,7 +129,9 @@ class ValuationPipeline:
     def _run_l1_analysts(self, state: ValuationState) -> ValuationState:
         """Run L1 analyst layer: fundamentals, valuation, sentiment, industry."""
         logger.info("Running L1 Analysts...")
-        from src.schemas import FinancialStatements
+        from src.schemas import FinancialStatements, DCFAssumptions
+        from src.valuation.dcf import DCFCalculator
+        from src.valuation.monte_carlo import MonteCarloValuation
 
         financials = []
         for f_dict in state.get("financial_data", []):
@@ -148,6 +150,38 @@ class ValuationPipeline:
             state.get("industry", ""),
             state.get("competitors", []),
         )
+
+        # Calculate valuation numbers to pass to L5
+        state["pe_quantile"] = None
+        state["dcf_value"] = None
+        state["monte_carlo_percentiles"] = None
+
+        if financials:
+            latest = financials[0]
+            try:
+                ocf = float(latest.operating_cashflow) if latest.operating_cashflow else 0.0
+                if ocf > 0:
+                    assumptions = DCFAssumptions(
+                        growth_rate=0.08,
+                        terminal_growth_rate=0.03,
+                        wacc=0.09,
+                        projection_years=5,
+                    )
+                    dcf_result = DCFCalculator().calculate([ocf], assumptions)
+                    state["dcf_value"] = float(dcf_result.intrinsic_value)
+
+                    mc_result = MonteCarloValuation(n_simulations=1000).simulate(
+                        base_fcf=ocf,
+                        growth_rate_mean=0.08,
+                        growth_rate_std=0.03,
+                        wacc_mean=0.09,
+                        wacc_std=0.01,
+                    )
+                    state["monte_carlo_percentiles"] = mc_result.percentiles
+                    logger.info(f"DCF={state['dcf_value']:.1f}, MC p50={mc_result.percentiles.get('p50', 0):.1f}")
+            except Exception as e:
+                logger.warning(f"Valuation calc failed: {e}")
+
         return state
 
     def _run_l2_masters(self, state: ValuationState) -> ValuationState:
@@ -251,11 +285,14 @@ class ValuationPipeline:
 
         report = self._final.estimate(
             ticker=state.get("ticker", ""),
-            company_name=state.get("company", {}).get("name", ""),
+            company_name=state.get("company", {}).get("name", state.get("ticker", "")),
             industry=state.get("industry", ""),
             master_signals=signals,
             debate_result=debate,
             risk_assessment=risk,
+            pe_quantile=state.get("pe_quantile"),
+            dcf_value=state.get("dcf_value"),
+            monte_carlo_percentiles=state.get("monte_carlo_percentiles"),
             competitor_comparison=state.get("competitor_comparison", {}),
         )
         state["final_report"] = report.model_dump(mode="json")
