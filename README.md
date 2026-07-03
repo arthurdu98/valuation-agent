@@ -282,6 +282,15 @@ ruff check src/ tests/
 - Monte Carlo 与 DCF 计算基于经营性现金流(OCF)简化估算 FCF，实盘使用前建议结合更完整的自由现金流模型
 - LLM 相关智能体（辩论、风险证伪、综合判断）在未配置 API Key 时会自动降级为规则/模板输出，不会报错中断流水线
 
+## 致谢与参考项目
+
+本项目的多智能体架构设计参考了以下两个开源/研究项目，并在此基础上重写了 A股/港股数据层与行业插件：
+
+- **[virattt/ai-hedge-fund](https://github.com/virattt/ai-hedge-fund)**（MIT License）— 借鉴其投资大师 agent 的两段式范式：确定性 Python 打分（把投资哲学写成硬阈值）+ LLM 叙述，以及统一的 `{signal, confidence, reasoning}` 输出格式。本项目的 L2 Masters 层（Buffett/Graham/Munger/Fisher/Damodaran）即基于此范式实现，并重写了数据层以支持 A股/港股/美股。该项目自述为教育用途的 proof of concept，非生产可用库。
+- **[TradingAgents](https://arxiv.org/abs/2412.20138)**（arXiv:2412.20138）— 借鉴其多空辩论（Bull/Bear Researcher 多轮辩论 + Judge 裁决）与反思记忆（历史决策复盘、经验教训检索）的架构模式。本项目的 L3 Debate 层与 `src/memory/reflection.py` 参考了该设计思路，未直接复用其代码。
+
+两者均为架构参考，非依赖库；本项目的数据层、行业插件、风险证伪层（L4）为独立实现。最终投资决策仍需人工复核（human-in-the-loop）把关。
+
 ## License
 
 MIT License，详见 [LICENSE](LICENSE)。
