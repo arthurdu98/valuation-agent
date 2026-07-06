@@ -91,19 +91,42 @@ class ValuationPipeline:
             graph.add_edge("l5_final", END)
         return graph.compile(checkpointer=InMemorySaver())
 
-    def run_sequential(self, state: ValuationState) -> ValuationState:
-        """Run the full L1-L5 pipeline without LangGraph, useful for tests."""
+    def run_sequential(self, state: ValuationState, progress_cb=None) -> ValuationState:
+        """Run the full L1-L5 pipeline without LangGraph, useful for tests and the API.
+
+        Args:
+            state: the input ValuationState dict.
+            progress_cb: optional callable receiving progress event dicts. Called
+                before/after each layer, and per-master (L2) / per-round (L3).
+                Backward-compatible: defaults to a no-op when None.
+        """
         logger.info(f"Starting pipeline for {state.get('ticker', 'unknown')}")
+        emit = progress_cb or (lambda event: None)
 
         try:
+            emit({"stage": "l1", "status": "start", "label": "L1 基础分析层"})
             state = self._run_l1_analysts(state)
-            state = self._run_l2_masters(state)
-            state = self._run_l3_debate(state)
+            emit({"stage": "l1", "status": "done", "pct": 20})
+
+            emit({"stage": "l2", "status": "start", "label": "L2 投资大师层"})
+            state = self._run_l2_masters(state, progress_cb=emit)
+            emit({"stage": "l2", "status": "done", "pct": 45})
+
+            emit({"stage": "l3", "status": "start", "label": "L3 多空辩论层"})
+            state = self._run_l3_debate(state, progress_cb=emit)
+            emit({"stage": "l3", "status": "done", "pct": 70})
+
+            emit({"stage": "l4", "status": "start", "label": "L4 风险证伪层"})
             state = self._run_l4_risk(state)
+            emit({"stage": "l4", "status": "done", "pct": 85})
+
+            emit({"stage": "l5", "status": "start", "label": "L5 综合估值层"})
             state = self._run_l5_final(state)
+            emit({"stage": "l5", "status": "done", "pct": 100})
         except Exception as e:
             logger.error(f"Pipeline error: {e}")
             state["error"] = str(e)
+            emit({"stage": "error", "status": "error", "message": str(e)})
 
         return state
 
@@ -194,10 +217,12 @@ class ValuationPipeline:
 
         return state
 
-    def _run_l2_masters(self, state: ValuationState) -> ValuationState:
+    def _run_l2_masters(self, state: ValuationState, progress_cb=None) -> ValuationState:
         """Run L2 master layer: investment philosophy agents."""
         logger.info("Running L2 Masters...")
         from src.schemas import FinancialStatements
+
+        emit = progress_cb or (lambda event: None)
 
         financials = []
         for f_dict in state.get("financial_data", []):
@@ -216,7 +241,15 @@ class ValuationPipeline:
         )
 
         signals = []
-        for master in self._masters:
+        total = len(self._masters)
+        for idx, master in enumerate(self._masters, start=1):
+            emit({
+                "stage": "l2",
+                "status": "progress",
+                "detail": master.name,
+                "index": idx,
+                "total": total,
+            })
             try:
                 signal = master.analyze(analysis_data)
                 signals.append(signal.model_dump())
@@ -233,7 +266,7 @@ class ValuationPipeline:
         state["master_signals"] = signals
         return state
 
-    def _run_l3_debate(self, state: ValuationState) -> ValuationState:
+    def _run_l3_debate(self, state: ValuationState, progress_cb=None) -> ValuationState:
         """Run L3 debate layer: bull vs bear argumentation."""
         logger.info("Running L3 Debate...")
         signals = [MasterSignal(**s) for s in state.get("master_signals", [])]
@@ -252,6 +285,7 @@ class ValuationPipeline:
             industry=state.get("industry", ""),
             bull_evidence=bull_evidence,
             bear_evidence=bear_evidence,
+            progress_cb=progress_cb,
         )
         state["debate_result"] = result.model_dump()
         return state

@@ -20,7 +20,6 @@ dependencies = [
     "sqlalchemy[asyncio]",
     "psycopg2-binary",
     "pgvector",
-    "streamlit",
     "httpx",
     "apscheduler",
     "python-dotenv",
@@ -29,7 +28,10 @@ dependencies = [
     "sentence-transformers",
     "financetoolkit",
     "fredapi",
-    "plotly",
+    "fastapi",
+    "uvicorn[standard]",
+    "sse-starlette",
+    "python-multipart",
 ]
 
 [project.optional-dependencies]

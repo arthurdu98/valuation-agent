@@ -19,6 +19,9 @@ ENV/
 # Environment / secrets
 .env
 .env.local
+
+# Local-only compose override (host port remaps, etc.)
+docker-compose.override.yml
 *.key
 *.pem
 
@@ -35,6 +38,11 @@ uv.lock
 # OS
 .DS_Store
 Thumbs.db
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
 
 # Data / DB volumes
 pgdata/

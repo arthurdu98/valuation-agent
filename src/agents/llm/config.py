@@ -25,7 +25,7 @@ def load_llm_config(config_path: str = "configs/llm.yaml") -> LLMConfig:
     path = Path(config_path)
     if not path.exists():
         raise FileNotFoundError(f"LLM config not found: {config_path}")
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         raw = yaml.safe_load(f)
     models = {name: ModelConfig(**cfg) for name, cfg in raw.get("models", {}).items()}
     return LLMConfig(

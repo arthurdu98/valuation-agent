@@ -1,4 +1,8 @@
-"""Report rendering and export utilities."""
+"""Report rendering and export utilities.
+
+Migrated from src/ui/export.py so the API layer can import it after Streamlit
+removal. Interface and behavior are unchanged.
+"""
 
 from __future__ import annotations
 

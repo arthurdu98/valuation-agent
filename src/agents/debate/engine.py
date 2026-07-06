@@ -28,9 +28,18 @@ class DebateEngine:
         bear_evidence: list[str],
         bear_attack_points: list[str] = None,
         competitor_context: str = "",
+        progress_cb=None,
     ) -> DebateResult:
+        emit = progress_cb or (lambda event: None)
         rounds = []
         for round_num in range(1, self.max_rounds + 1):
+            emit({
+                "stage": "l3",
+                "status": "progress",
+                "detail": f"第 {round_num} 轮",
+                "round": round_num,
+                "total": self.max_rounds,
+            })
             bull_arg = self._bull.argue(
                 company_name, industry, bull_evidence, rounds, competitor_context
             )
