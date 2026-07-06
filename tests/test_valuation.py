@@ -2,12 +2,12 @@ from datetime import date
 
 import pandas as pd
 
-from src.schemas import DCFAssumptions
-from src.valuation.dcf import DCFCalculator
-from src.valuation.dupont import DuPontAnalyzer
-from src.valuation.graham import GrahamCalculator
-from src.valuation.monte_carlo import MonteCarloValuation
-from src.valuation.pe_band import PEBandCalculator
+from src.backend.schemas import DCFAssumptions
+from src.backend.valuation.dcf import DCFCalculator
+from src.backend.valuation.dupont import DuPontAnalyzer
+from src.backend.valuation.graham import GrahamCalculator
+from src.backend.valuation.monte_carlo import MonteCarloValuation
+from src.backend.valuation.pe_band import PEBandCalculator
 
 
 def test_pe_band_quantiles():

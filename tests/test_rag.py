@@ -1,5 +1,5 @@
-from src.rag.ingest import DOCUMENT_INDEX, RAGIngestor
-from src.rag.search import RAGSearchEngine
+from src.backend.rag.ingest import DOCUMENT_INDEX, RAGIngestor
+from src.backend.rag.search import RAGSearchEngine
 
 
 def test_rag_text_ingest_and_search():

@@ -1,8 +1,8 @@
 from datetime import date
 from decimal import Decimal
 
-from src.graph.pipeline import ValuationPipeline
-from src.schemas import Market
+from src.backend.graph.pipeline import ValuationPipeline
+from src.backend.schemas import Market
 
 
 def test_pipeline_sequential_end_to_end():

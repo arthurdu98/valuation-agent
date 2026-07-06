@@ -19,16 +19,18 @@ docker compose up -d          # 仅 postgres + grafana
 
 ### 2. 后端 API（FastAPI）
 ```bash
-.venv/Scripts/python.exe -m uvicorn src.api.main:app --port 8000
+.venv/Scripts/python.exe -m uvicorn src.backend.api.main:app --port 8000
 ```
 - API 文档: `http://localhost:8000/docs`
 - 健康检查: `http://localhost:8000/api/health`
 
 ⚠ **必须单 worker 运行**：run_registry 和 CompanyManager 是进程内内存状态，多 worker 会静默分裂。
 
+⚠ 启动命令须在**项目根目录**执行（`configs/llm.yaml` 等按相对根目录解析）。
+
 ### 3. 前端（Next.js）
 ```bash
-cd frontend
+cd src/frontend
 npm run dev                   # http://localhost:3000
 ```
 `/api/*` 通过 `next.config.ts` 的 rewrite 代理到 `localhost:8000`，本地开发免 CORS。
@@ -60,4 +62,4 @@ curl -N http://localhost:8000/api/runs/<run_id>/stream
 - **人工复核续跑**（HITL）：`/api/runs/{id}/resume` 返回 501。InMemorySaver 单进程约束，后续接 Postgres checkpointer 再启用。
 - **DB 未接线**：公司列表、指标提交为内存/回显；`GET /api/metrics/{ticker}` 返回空数组。
 - **无鉴权**：run 端点会触发付费 LLM 调用。非 localhost 暴露前必须加 API key + 限流。
-- **行业对比数据**为静态样例（`src/api/static_data.py`），生产环境应接 DataCollector。
+- **行业对比数据**为静态样例（`src/backend/api/static_data.py`），生产环境应接 DataCollector。

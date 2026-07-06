@@ -3,9 +3,9 @@ from decimal import Decimal
 
 import pandas as pd
 
-from src.data.base import DataCollectionError
-from src.data.collector import DataCollector
-from src.schemas import FinancialStatements, Market
+from src.backend.data.base import DataCollectionError
+from src.backend.data.collector import DataCollector
+from src.backend.schemas import FinancialStatements, Market
 
 
 class FailingAdapter:

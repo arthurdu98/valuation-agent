@@ -65,7 +65,7 @@
                           └───────────────────────────────┘
 ```
 
-L1-L5 流水线由 `src/graph/pipeline.py` 中的 `ValuationPipeline` 编排，底层用 LangGraph 的 `StateGraph` 构建（`run()`），也提供不依赖 LangGraph 的顺序执行版本（`run_sequential()`，主要用于测试）。当 `RunConfig.require_human_approval=True` 时，L5 之后会插入 `human_review` 节点，通过 LangGraph 的 `interrupt`/`Command(resume=...)` 实现人工审批中断与续跑。
+L1-L5 流水线由 `src/backend/graph/pipeline.py` 中的 `ValuationPipeline` 编排，底层用 LangGraph 的 `StateGraph` 构建（`run()`），也提供不依赖 LangGraph 的顺序执行版本（`run_sequential()`，主要用于测试）。当 `RunConfig.require_human_approval=True` 时，L5 之后会插入 `human_review` 节点，通过 LangGraph 的 `interrupt`/`Command(resume=...)` 实现人工审批中断与续跑。
 
 ## 技术栈
 
@@ -142,7 +142,7 @@ valuation-agent/
 
 ## 数据模型概览
 
-核心 Pydantic 模型定义于 `src/schemas.py`：
+核心 Pydantic 模型定义于 `src/backend/schemas.py`：
 
 - `Signal`：BULLISH / BEARISH / NEUTRAL 三态信号
 - `MasterSignal`：投资大师输出（signal, confidence, reasoning, scoring_details）
@@ -210,21 +210,25 @@ docker compose up -d
 - `valuation-postgres`：TimescaleDB + pgvector + pgcrypto，自动执行 `docker/init.sql` 建表
 - `valuation-grafana`（http://localhost:3000，默认账号 admin/admin）：预配置 PostgreSQL 数据源、看板与告警规则
 
-### 运行 Streamlit UI
+### 运行前后端
 
 ```bash
-streamlit run src/ui/app.py
+# 后端 API（FastAPI）
+.venv/Scripts/python.exe -m uvicorn src.backend.api.main:app --port 8000
+
+# 前端（Next.js）
+cd src/frontend && npm run dev    # http://localhost:3000
 ```
 
-页面包括：追踪公司概览（Home）、公司详情、行业对比、手动指标录入、报告导出。
+页面包括：追踪公司概览（首页）、公司详情（实时L1-L5进度）、行业对比、手动指标录入、报告导出。
 
 ### 编程方式调用估值流水线
 
 ```python
 from datetime import date
 from decimal import Decimal
-from src.graph.pipeline import ValuationPipeline
-from src.schemas import Market
+from src.backend.graph.pipeline import ValuationPipeline
+from src.backend.schemas import Market
 
 state = {
     "company": {"name": "贵州茅台"},
@@ -274,7 +278,7 @@ ruff check src/ tests/
 
 ## 行业插件扩展
 
-新增行业只需实现 `src/data/industry/base.py` 定义的插件协议（`industry` 属性 + `metrics: list[MetricDefinition]` + 可选 `AlertRule`），参考已有的 `baijiu.py`（白酒：产品结构、渠道库存、提价节奏）、`tcm.py`（中药：独家品种收入占比、集采风险）、`toy.py`（潮玩：IP生命周期、会员复购率）、`internet.py`（互联网：MAU/DAU、ARPU、CAC）实现。每个指标可标记采集模式（`AUTO`/`SEMI_AUTO`/`MANUAL`），供数据采集调度器与 Streamlit 录入页面区分处理方式。
+新增行业只需实现 `src/backend/data/industry/base.py` 定义的插件协议（`industry` 属性 + `metrics: list[MetricDefinition]` + 可选 `AlertRule`），参考已有的 `baijiu.py`（白酒：产品结构、渠道库存、提价节奏）、`tcm.py`（中药：独家品种收入占比、集采风险）、`toy.py`（潮玩：IP生命周期、会员复购率）、`internet.py`（互联网：MAU/DAU、ARPU、CAC）实现。每个指标可标记采集模式（`AUTO`/`SEMI_AUTO`/`MANUAL`），供数据采集调度器与指标录入页面区分处理方式。
 
 ## 已知限制
 

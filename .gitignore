@@ -40,9 +40,9 @@ uv.lock
 Thumbs.db
 
 # Frontend
-frontend/node_modules/
-frontend/.next/
-frontend/out/
+src/frontend/node_modules/
+src/frontend/.next/
+src/frontend/out/
 
 # Data / DB volumes
 pgdata/

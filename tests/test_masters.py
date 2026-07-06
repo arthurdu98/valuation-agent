@@ -1,10 +1,10 @@
 from datetime import date
 from decimal import Decimal
 
-from src.agents.masters.base import CompanyAnalysisData
-from src.agents.masters.buffett import BuffettAgent
-from src.agents.masters.graham import GrahamAgent
-from src.schemas import FinancialStatements, Market, Signal
+from src.backend.agents.masters.base import CompanyAnalysisData
+from src.backend.agents.masters.buffett import BuffettAgent
+from src.backend.agents.masters.graham import GrahamAgent
+from src.backend.schemas import FinancialStatements, Market, Signal
 
 
 def _financials():
